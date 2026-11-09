@@ -1,0 +1,7 @@
+# 원본 데이터와 전략 문서는 공개하지 않음
+*.xlsx
+*.csv
+*.md
+!README.md
+tools/data_*.json
+__pycache__/

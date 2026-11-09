@@ -1,0 +1,548 @@
+<title>{{LEV}} 모드 변경 백테스트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: 왼쪽 조건 패널(데스크톱 sticky) + 오른쪽 결과 열. 요약 수치 → 차트 → 표 순서. */
+:root {
+  --bg: #f4f6f8; --panel: #fdfdfe; --ink: #12151a; --ink2: #4b535e; --muted: #7f8792;
+  --line: #e2e6eb; --axis: #c3c9d1; --ring: rgba(18,21,26,.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --aband: rgba(98,80,214,.10); --achip: #6250d6;
+  --pos: #1c5cab; --neg: #c03a3a; --pos-bg: rgba(42,120,214,.13); --neg-bg: rgba(227,73,72,.13);
+  --accent: #2a78d6;
+  --f-sans: "IBM Plex Sans KR", system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1114; --panel: #171a1f; --ink: #eef0f3; --ink2: #b8bec7; --muted: #848b96;
+  --line: #262a31; --axis: #3a4048; --ring: rgba(255,255,255,.09);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --aband: rgba(144,133,233,.14); --achip: #9085e9;
+  --pos: #86b6ef; --neg: #ef8a8a; --pos-bg: rgba(57,135,229,.20); --neg-bg: rgba(230,103,103,.20);
+  --accent: #5598e7; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1114; --panel: #171a1f; --ink: #eef0f3; --ink2: #b8bec7; --muted: #848b96;
+  --line: #262a31; --axis: #3a4048; --ring: rgba(255,255,255,.09);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --aband: rgba(144,133,233,.14); --achip: #9085e9;
+  --pos: #86b6ef; --neg: #ef8a8a; --pos-bg: rgba(57,135,229,.20); --neg-bg: rgba(230,103,103,.20);
+  --accent: #5598e7; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-sans); font-size: 14px; line-height: 1.55; }
+.wrap { max-width: 1260px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: grid; gap: 6px; margin-bottom: 22px; }
+.assets { display: flex; gap: 6px; margin-bottom: 8px; }
+.assets a { font: 600 12px var(--f-mono); letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); text-decoration: none; }
+.assets a:hover { border-color: var(--accent); color: var(--ink); }
+.assets a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.eyebrow { font: 500 12px/1 var(--f-mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(24px, 3.2vw, 32px); font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.lede { margin: 0; color: var(--ink2); max-width: 68ch; }
+.lede b { color: var(--ink); font-weight: 600; }
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+aside { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); background: var(--panel);
+  border: 1px solid var(--ring); border-radius: 10px; padding: 18px; display: grid; gap: 18px; }
+@media (max-width: 880px) { aside { position: static; } }
+aside h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.ctl { display: grid; gap: 6px; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ctl label, .ctl .lbl { font-size: 13px; font-weight: 500; }
+.ctl output { font: 500 13px var(--f-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.ctl .hint, aside > .hint { font-size: 12px; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+input[type=date] { font: 13px var(--f-mono); padding: 6px 8px; border: 1px solid var(--axis); border-radius: 6px;
+  background: var(--bg); color: var(--ink); width: 100%; min-width: 0; }
+.dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+select { font: 500 13px var(--f-mono); padding: 6px 8px; border: 1px solid var(--axis); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; min-width: 0; cursor: pointer; }
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#yr-t tbody tr { cursor: pointer; }
+#yr-t tbody tr:hover td { background-color: var(--line); }
+#yr-t tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+#yr-t tbody tr.sel td:first-child { color: var(--accent); font-weight: 600; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button, .btn { font: 500 12px var(--f-sans); padding: 5px 10px; border-radius: 999px; border: 1px solid var(--axis);
+  background: transparent; color: var(--ink2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seg button:hover, .btn:hover { border-color: var(--accent); color: var(--ink); }
+.seg button[aria-pressed="true"]:hover { color: #fff; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+.divider { height: 1px; background: var(--line); }
+
+main { display: grid; gap: 20px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1080px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { background: var(--panel); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tile .k { font-size: 12px; color: var(--muted); font-weight: 500; }
+.tile .v { font-size: 28px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+.tile .sub { font-size: 12px; color: var(--ink2); }
+.tile .sub span { font-family: var(--f-mono); }
+
+.card { background: var(--panel); border: 1px solid var(--ring); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; margin-bottom: 10px; }
+.card h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.card .note { font-size: 12px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink2); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.band { height: 10px; width: 12px; background: var(--aband); border: 1px solid var(--achip); border-radius: 2px; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; overflow: visible; touch-action: pan-y; }
+.chart text { font: 11px var(--f-mono); fill: var(--muted); }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--ring); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); min-width: 170px; z-index: 2; }
+.tip .d { font: 500 12px var(--f-mono); margin-bottom: 4px; display: flex; justify-content: space-between; gap: 10px; }
+.tip .row { display: flex; justify-content: space-between; gap: 14px; color: var(--ink2); }
+.tip .row b { font: 500 12px var(--f-mono); color: var(--ink); }
+.tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.chip { font: 500 11px var(--f-sans); padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; }
+.chip.a { color: var(--achip); } .chip.vt { color: var(--s1); }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+@media (min-width: 1500px) { .grid2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: right; font-weight: 500; font-size: 12px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-family: var(--f-mono); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td:first-child { font-family: var(--f-sans); }
+td.strong { font-weight: 500; color: var(--ink); }
+td.p { color: var(--pos); } td.n { color: var(--neg); }
+td.hp { background: var(--pos-bg); } td.hn { background: var(--neg-bg); }
+.yearly { max-height: 520px; overflow: auto; }
+.yearly th { position: sticky; top: 0; background: var(--panel); }
+
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 1080px) { .rules { grid-template-columns: minmax(0, 1fr); } }
+.rules h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.rules ul { margin: 0; padding-left: 18px; color: var(--ink2); display: grid; gap: 3px; }
+.rules b { color: var(--ink); font-weight: 600; }
+.foot { font-size: 12px; color: var(--muted); max-width: 90ch; display: grid; gap: 4px; }
+@media (prefers-reduced-motion: no-preference) { .tile .v, td { transition: color .2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <nav class="assets" aria-label="종목">{{NAV}}</nav>
+    <div class="eyebrow">Backtest · {{IDX}} 3x · 1986–2026</div>
+    <h1>{{LEV}} 모드 변경 전략</h1>
+    <p class="lede">{{BASE}} 12개월 수익률이 <b>−3% 아래</b>로 내려가면 LOC 분할매매(A 모드), <b>+3% 위</b>로 올라오면 변동성 타게팅(VT 모드)으로 운용합니다. 조건을 바꾸면 브라우저에서 바로 다시 계산합니다.</p>
+  </header>
+
+  <div class="layout">
+    <aside aria-label="백테스트 조건">
+      <h2>조건</h2>
+      <div class="ctl">
+        <span class="lbl">기간</span>
+        <div class="seg" id="presets">
+          <button type="button" data-p="ytd">올해</button>
+          <button type="button" data-p="1">최근 1년</button>
+          <button type="button" data-p="3">3년</button>
+          <button type="button" data-p="5">5년</button>
+          <button type="button" data-p="10">10년</button>
+          <button type="button" data-p="all">전체</button>
+        </div>
+        <select id="y-one" aria-label="연도 선택"><option value="">연도 선택 (한 해만 보기)</option></select>
+        <div class="dates">
+          <input type="date" id="start" aria-label="시작일">
+          <input type="date" id="end" aria-label="종료일">
+        </div>
+        <span class="hint">시작일에 $10,000로 새로 시작합니다. 첫 모드는 그날 신호로 정해서 전체 기간 결과의 같은 해와 조금 다를 수 있습니다.</span>
+      </div>
+      <div class="divider"></div>
+      <div class="ctl">
+        <div class="ctl-head"><label for="band">모드 전환 여유폭</label><output id="band-o"></output></div>
+        <input type="range" id="band" min="0" max="10" step="1" value="3">
+        <span class="hint">±값 사이에서는 현재 모드 유지</span>
+      </div>
+      <div class="ctl">
+        <span class="lbl">신호 기준일</span>
+        <div class="seg" id="lag">
+          <button type="button" data-v="2">그저께 종가</button>
+          <button type="button" data-v="1">어제 종가</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head"><label for="vt">VT 목표 변동성</label><output id="vt-o"></output></div>
+        <input type="range" id="vt" min="10" max="50" step="5" value="20">
+        <span class="hint">비중 = 목표 ÷ 20일 변동성 (최대 100%)</span>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head"><label for="invest">A 모드 투입 한도</label><output id="invest-o"></output></div>
+        <input type="range" id="invest" min="30" max="100" step="5" value="70">
+      </div>
+      <div class="ctl">
+        <div class="ctl-head"><label for="ntier">A 모드 분할 수</label><output id="ntier-o"></output></div>
+        <input type="range" id="ntier" min="1" max="10" step="1" value="{{DEF_NTIER}}">
+        <span class="hint" id="tier-hint"></span>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head"><label for="buy">A 모드 매수 하락폭</label><output id="buy-o"></output></div>
+        <input type="range" id="buy" min="0.5" max="3" step="0.5" value="{{DEF_BUY}}">
+        <span class="hint">종가가 어제보다 이만큼 떨어지면 1티어 매수</span>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head"><label for="sell">A 모드 매도 상승폭</label><output id="sell-o"></output></div>
+        <input type="range" id="sell" min="0.5" max="3" step="0.5" value="{{DEF_SELL}}">
+        <span class="hint">종가가 어제보다 이만큼 오르면 전량 매도</span>
+      </div>
+      <div class="divider"></div>
+      <div class="switch"><label for="interest">현금 이자 반영</label><input type="checkbox" id="interest"></div>
+      <button type="button" class="btn" id="reset">기본 설정으로 되돌리기</button>
+      <span class="hint">기본값: {{DEF_NOTE}}</span>
+    </aside>
+
+    <main>
+      <section class="tiles" aria-label="요약">
+        <div class="tile"><span class="k">연평균 수익률 (CAGR)</span><span class="v" id="t-cagr"></span><span class="sub" id="t-cagr-s"></span></div>
+        <div class="tile"><span class="k">최대 낙폭 (MDD)</span><span class="v" id="t-mdd"></span><span class="sub" id="t-mdd-s"></span></div>
+        <div class="tile"><span class="k">최종 자산 ($10,000 시작)</span><span class="v" id="t-fin"></span><span class="sub" id="t-fin-s"></span></div>
+        <div class="tile"><span class="k">모드 전환</span><span class="v" id="t-sw"></span><span class="sub" id="t-sw-s"></span></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>자산 추이 <span class="note">로그 스케일</span></h3>
+          <div class="legend">
+            <span><i style="background:var(--s1)"></i>전략</span>
+            <span><i style="background:var(--s2)"></i>{{LEV}} 보유</span>
+            <span><i style="background:var(--s3)"></i>{{BASE}} 보유</span>
+            <span><i class="band"></i>A 모드 구간</span>
+          </div>
+        </div>
+        <div class="chart" id="c-eq"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>낙폭 <span class="note">직전 고점 대비</span></h3>
+          <div class="legend">
+            <span><i style="background:var(--s1)"></i>전략</span>
+            <span><i style="background:var(--s2)"></i>{{LEV}} 보유</span>
+            <span><i style="background:var(--s3)"></i>{{BASE}} 보유</span>
+          </div>
+        </div>
+        <div class="chart" id="c-dd"></div>
+      </section>
+
+      <div class="grid2">
+        <section class="card">
+          <div class="card-head"><h3>구간별 CAGR / MDD</h3></div>
+          <div class="tbl"><table id="seg-t"></table></div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h3>전략 주요 낙폭</h3></div>
+          <div class="tbl"><table id="dd-t"></table></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-head"><h3>연도별 수익률</h3><span class="note" id="yr-note"></span></div>
+        <div class="tbl yearly"><table id="yr-t"></table></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>매매 규칙</h3><span class="note">모든 주문은 장 마감 종가 체결 · 수수료 0.07% · 정수주</span></div>
+        <div class="rules">
+          <div>
+            <h4>모드 선택 (매일)</h4>
+            <ul>
+              <li>{{BASE}} 12개월 수익률 = 기준일 종가 ÷ 252거래일 전 종가 − 1</li>
+              <li>VT → A: 12개월 수익률 <b>&lt; −여유폭</b></li>
+              <li>A → VT: 12개월 수익률 <b>&gt; +여유폭</b></li>
+              <li>전환일에는 같은 날 종가에 새 모드 목표로 차이만큼 주문</li>
+            </ul>
+          </div>
+          <div>
+            <h4><span class="chip vt">VT</span> 변동성 타게팅</h4>
+            <ul>
+              <li>변동성 = 어제까지 20거래일 {{LEV}} 일간수익률 표준편차 × √252</li>
+              <li>목표 비중 = <b>목표 ÷ 변동성</b> (최대 100%), 나머지 현금</li>
+              <li>매일 목표 수량과의 차이만큼 매수·매도</li>
+            </ul>
+          </div>
+          <div>
+            <h4><span class="chip a">A</span> LOC 분할매매</h4>
+            <ul>
+              <li>종가 ≤ 어제 종가 × <b id="r-buy">0.99</b> → 1티어 매수 (하루 1티어)</li>
+              <li>보유 중 종가 ≥ 어제 종가 × <b id="r-sell">1.01</b> → <b>손익 무관 전량 매도</b></li>
+              <li>1티어 = 사이클 첫 매수 시점 총자산 × 투입 한도 ÷ 분할 수</li>
+              <li>손절·분할 매도 없음, 티어를 다 쓰면 매도 전까지 대기</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="foot">
+        <span>{{SYN_NOTE}}</span>
+        <span>현금 이자: 2009년 이전 일별 금리, 2010년 이후 연준 실효금리 연평균, 현금성 ETF 비용 0.1% 차감. 세금, 호가 비용, 레버리지 ETF 조기 청산 위험은 반영하지 않았습니다.</span>
+        <span id="data-range"></span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+const DATA = /*DATA*/;
+/*ENGINE*/
+</script>
+<script>
+(() => {
+const X = prepData(DATA);
+const $ = id => document.getElementById(id);
+const DEF = { start: "1986-10-01", end: "", band: 3, lag: 2, vt: 20, invest: 70, ntier: {{DEF_NTIER}}, buy: {{DEF_BUY}}, sell: {{DEF_SELL}}, interest: false };
+const lastISO = iso(DATA.d[X.n - 1]);
+function iso(s) { return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8); }
+const pct = (v, d = 1) => (v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(d) + "%";
+const spct = (v, d = 0) => { const r = Math.round(v * 100 * 10 ** d) / 10 ** d; return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(d); };
+const usd = v => "$" + Math.round(v).toLocaleString("en-US");
+const usdS = v => v >= 1e6 ? "$" + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + "M" : v >= 1e3 ? "$" + (v / 1e3).toFixed(0) + "K" : "$" + v.toFixed(0);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+$("start").min = "1986-10-01"; $("end").max = lastISO; $("start").max = lastISO; $("end").min = "1986-10-01";
+const Y0 = 1986, Y1 = +lastISO.slice(0, 4);
+for (let y = Y1; y >= Y0; y--) $("y-one").add(new Option(y + "년" + (y === Y1 ? " (올해)" : ""), y));
+const yStartISO = y => y <= Y0 ? DEF.start : y + "-01-01";
+const yEndISO = y => y >= Y1 ? lastISO : y + "-12-31";
+// 기간 버튼: 마지막 데이터일 기준
+function presetRange(p) {
+  if (p === "all") return [DEF.start, lastISO];
+  if (p === "ytd") return [lastISO.slice(0, 4) + "-01-01", lastISO];
+  const y = +lastISO.slice(0, 4) - +p, md = lastISO.slice(4);
+  const d = new Date(Date.UTC(y, +md.slice(1, 3) - 1, +md.slice(4, 6) + 1)); // N년 전 다음 날부터
+  return [d.toISOString().slice(0, 10), lastISO];
+}
+function syncYears() {
+  const y = +$("start").value.slice(0, 4);
+  $("y-one").value = $("start").value === yStartISO(y) && ($("end").value || lastISO) === yEndISO(y) ? String(y) : "";
+}
+function setYears(a, b) { if (a > b) [a, b] = [b, a]; $("start").value = yStartISO(a); $("end").value = yEndISO(b); schedule(); }
+$("data-range").textContent = `데이터: ${iso(DATA.d[0])} ~ ${lastISO} · 거래일 ${X.n.toLocaleString()}일 · 초기자본 $10,000`;
+
+function readState() {
+  return {
+    start: $("start").value || DEF.start, end: $("end").value || lastISO,
+    band: +$("band").value, vt: +$("vt").value, invest: +$("invest").value, ntier: +$("ntier").value, buy: +$("buy").value, sell: +$("sell").value,
+    lag: +document.querySelector("#lag [aria-pressed=true]")?.dataset.v || 2, interest: $("interest").checked,
+  };
+}
+function setState(s) {
+  $("start").value = s.start; $("end").value = s.end || lastISO;
+  for (const k of ["band", "vt", "invest", "ntier", "buy", "sell"]) $(k).value = s[k];
+  $("interest").checked = s.interest;
+  document.querySelectorAll("#lag button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === s.lag)));
+}
+
+let R = null, hoverI = null;
+function compute() {
+  const s = readState();
+  $("band-o").textContent = "±" + s.band + "%"; $("vt-o").textContent = s.vt + "%";
+  $("invest-o").textContent = s.invest + "%"; $("ntier-o").textContent = s.ntier + "분할";
+  $("buy-o").textContent = "−" + s.buy.toFixed(1) + "%"; $("sell-o").textContent = "+" + s.sell.toFixed(1) + "%";
+  $("r-buy").textContent = (1 - s.buy / 100).toFixed(3).replace(/0$/, ""); $("r-sell").textContent = (1 + s.sell / 100).toFixed(3).replace(/0$/, "");
+  $("tier-hint").textContent = `1티어 = 총자산의 ${(s.invest / s.ntier).toFixed(1)}%`;
+  syncYears();
+  document.querySelectorAll("#presets button").forEach(b => {
+    const [ps, pe] = presetRange(b.dataset.p); b.setAttribute("aria-pressed", String(ps === s.start && pe === s.end)); });
+  const o = { lag: s.lag, band: s.band / 100, vt: s.vt / 100, invest: s.invest / 100, ntier: s.ntier, buy: s.buy / 100, sell: s.sell / 100, interest: s.interest,
+    start: s.start.replaceAll("-", ""), end: s.end.replaceAll("-", "") };
+  const bt = runBacktest(X, o);
+  const N = bt.eq.length, i0 = bt.start;
+  const up = new Float64Array(N), sp = new Float64Array(N);
+  for (let k = 0; k < N; k++) { up[k] = X.P[i0 + k] / X.P[i0] * 1e4; sp[k] = X.S[i0 + k] / X.S[i0] * 1e4; }
+  const dd = a => { const o = new Float64Array(a.length); let pk = -Infinity; for (let k = 0; k < a.length; k++) { pk = Math.max(pk, a[k]); o[k] = a[k] / pk - 1; } return o; };
+  R = { ...bt, N, i0, s: [bt.eq, up, sp], d: [dd(bt.eq), dd(up), dd(sp)] };
+  render();
+}
+
+function stat(a, k0, k1) {
+  // base = 직전 거래일 값 (구간 시작이 백테스트 시작이면 첫 값)
+  const kb = k0 > 0 ? k0 - 1 : 0, b = a[kb];
+  const yrs = (X.t[R.i0 + k1] - X.t[R.i0 + kb]) / (365.25 * 864e5);
+  let pk = b, m = 0; for (let k = k0; k <= k1; k++) { if (a[k] > pk) pk = a[k]; m = Math.min(m, a[k] / pk - 1); }
+  return { c: yrs > 0 ? Math.pow(a[k1] / b, 1 / yrs) - 1 : NaN, m, r: a[k1] / b - 1 };
+}
+const kOf = ymd => { let k = 0; while (k < R.N && X.ds[R.i0 + k] < ymd) k++; return k; };
+
+function render() {
+  const N = R.N, all = R.s.map(a => stat(a, 0, N - 1));
+  const yrs = (X.t[R.end] - X.t[R.start]) / (365.25 * 864e5);
+  let aDays = 0; for (const v of R.modeA) aDays += v;
+  $("t-cagr").textContent = pct(all[0].c); $("t-cagr-s").innerHTML = `{{LEV}} <span>${pct(all[1].c)}</span> · {{BASE}} <span>${pct(all[2].c)}</span>`;
+  $("t-mdd").textContent = pct(all[0].m); $("t-mdd-s").innerHTML = `{{LEV}} <span>${pct(all[1].m)}</span> · {{BASE}} <span>${pct(all[2].m)}</span>`;
+  $("t-fin").textContent = usd(R.eq[N - 1]); $("t-fin-s").innerHTML = `${iso(X.ds[R.start])} ~ ${iso(X.ds[R.end])} · 수수료 <span>${usdS(R.fees)}</span>`;
+  $("t-sw").textContent = `연 ${(R.switches / yrs).toFixed(2)}회`; $("t-sw-s").innerHTML = `총 <span>${R.switches}</span>회 · A 모드 기간 <span>${pct(aDays / N, 0)}</span>`;
+  drawCharts(); tables();
+}
+
+/* ---------- charts ---------- */
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, at, parent) => { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); parent && parent.appendChild(e); return e; };
+const charts = {};
+function setupChart(id, h) {
+  const box = $(id); box.innerHTML = "";
+  const svg = el("svg", { height: h, role: "img" }, box);
+  const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; box.appendChild(tip);
+  const c = { box, svg, tip, h };
+  svg.addEventListener("pointermove", e => { const r = svg.getBoundingClientRect(); setHover(c.xinv(e.clientX - r.left)); });
+  svg.addEventListener("pointerleave", () => setHover(null));
+  charts[id] = c; return c;
+}
+setupChart("c-eq", 340); setupChart("c-dd", 200);
+$("c-eq").querySelector("svg").setAttribute("aria-label", "전략, {{LEV}}, {{BASE}} 자산 추이 로그 차트");
+$("c-dd").querySelector("svg").setAttribute("aria-label", "전략, {{LEV}}, {{BASE}} 낙폭 차트");
+
+function bucketPath(arr, xs, ys, W) {
+  // 픽셀 열마다 최소·최대만 남겨 긴 시계열을 가볍게 그림
+  const N = arr.length, per = Math.max(1, Math.floor(N / (W * 1.5)));
+  let d = "";
+  for (let k = 0; k < N; k += per) {
+    let lo = k, hi = k; const e = Math.min(N, k + per);
+    for (let j = k; j < e; j++) { if (arr[j] < arr[lo]) lo = j; if (arr[j] > arr[hi]) hi = j; }
+    for (const j of lo <= hi ? [lo, hi] : [hi, lo]) d += (d ? "L" : "M") + xs(j).toFixed(1) + "," + ys(arr[j]).toFixed(1);
+  }
+  return d;
+}
+function niceYears(t0, t1, W) {
+  if (t1 - t0 < 2.5 * 365 * 864e5) {  // 짧은 기간: 월 눈금
+    const maxT = Math.max(2, Math.floor(W / 60)), months = (t1 - t0) / (30.4 * 864e5);
+    const step = [1, 2, 3, 6].find(s => months / s <= maxT) || 6, out = [];
+    const d0 = new Date(t0); let y = d0.getUTCFullYear(), m = d0.getUTCMonth() + 1;
+    for (;; m++) { if (m > 11) { y++; m = 0; } const t = Date.UTC(y, m, 1); if (t > t1) break;
+      if (m % step === 0) out.push([t, m === 0 ? y + "" : String(y).slice(2) + "." + String(m + 1).padStart(2, "0")]); }
+    return out;
+  }
+  const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear();
+  const span = y1 - y0 + 1, maxT = Math.max(2, Math.floor(W / 70));
+  const step = [1, 2, 5, 10, 20].find(s => span / s <= maxT) || 20;
+  const out = []; for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) { const t = Date.UTC(y, 0, 1); if (t >= t0 && t <= t1) out.push([t, y]); }
+  return out;
+}
+function drawChart(c, kind) {
+  const W = c.box.clientWidth; if (!W) return;
+  const svg = c.svg; svg.innerHTML = ""; svg.setAttribute("viewBox", `0 0 ${W} ${c.h}`);
+  const mL = 54, mR = 10, mT = 8, mB = 24, pw = W - mL - mR, ph = c.h - mT - mB, N = R.N;
+  const T0 = X.t[R.i0], T1 = X.t[R.i0 + N - 1];
+  const xs = k => mL + (X.t[R.i0 + k] - T0) / (T1 - T0 || 1) * pw;
+  c.xinv = px => { const tt = T0 + (px - mL) / pw * (T1 - T0); let lo = 0, hi = N - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (X.t[R.i0 + m] < tt) lo = m + 1; else hi = m; } return px < mL - 4 || px > W ? null : lo; };
+  const series = kind === "eq" ? R.s : R.d;
+  let ys, ticks = [];
+  if (kind === "eq") {
+    let lo = Infinity, hi = -Infinity; for (const a of series) for (const v of a) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const L0 = Math.log10(lo) - .05, L1 = Math.log10(hi) + .05;
+    ys = v => mT + (L1 - Math.log10(v)) / (L1 - L0) * ph;
+    for (let e = Math.floor(L0); e <= Math.ceil(L1); e++) for (const m of [1, 2, 5]) { const v = m * 10 ** e; const L = Math.log10(v); if (L >= L0 && L <= L1) ticks.push(v); }
+    if (ticks.length > 7) ticks = ticks.filter(v => Math.abs(Math.log10(v) % 1) < 1e-9);
+  } else {
+    let lo = 0; for (const a of series) for (const v of a) if (v < lo) lo = v;
+    const bottom = Math.max(-1, Math.floor(lo * 10) / 10);
+    ys = v => mT + (0 - v) / (0 - bottom) * ph;
+    const st = bottom < -0.6 ? 0.25 : 0.1; for (let v = 0; v >= bottom - 1e-9; v -= st) ticks.push(v);
+  }
+  c.ys = ys; c.xs = xs; c.mT = mT; c.ph = ph;
+  // A 모드 구간
+  if (kind === "eq") {
+    let k = 0; while (k < N) { if (R.modeA[k]) { const s = k; while (k < N && R.modeA[k]) k++;
+      el("rect", { x: xs(s), y: mT, width: Math.max(1, xs(k - 1) - xs(s)), height: ph, fill: "var(--aband)" }, svg); } else k++; }
+  }
+  for (const v of ticks) {
+    const y = ys(v);
+    el("line", { x1: mL, x2: W - mR, y1: y, y2: y, stroke: v === 0 && kind === "dd" ? "var(--axis)" : "var(--line)", "stroke-width": 1 }, svg);
+    el("text", { x: mL - 8, y: y + 4, "text-anchor": "end" }, svg).textContent = kind === "eq" ? usdS(v) : pct(v, 0);
+  }
+  for (const [t, y] of niceYears(T0, T1, pw)) {
+    const x = mL + (t - T0) / (T1 - T0) * pw;
+    el("line", { x1: x, x2: x, y1: mT + ph, y2: mT + ph + 4, stroke: "var(--axis)" }, svg);
+    el("text", { x, y: c.h - 6, "text-anchor": "middle" }, svg).textContent = y;
+  }
+  el("line", { x1: mL, x2: W - mR, y1: mT + ph, y2: mT + ph, stroke: "var(--axis)" }, svg);
+  const cols = ["var(--s1)", "var(--s2)", "var(--s3)"];
+  for (let i = 2; i >= 0; i--) el("path", { d: bucketPath(series[i], xs, ys, pw), fill: "none", stroke: cols[i], "stroke-width": i === 0 ? 2 : 1.5, "stroke-linejoin": "round", opacity: i === 0 ? 1 : .9 }, svg);
+  c.hover = el("g", { "pointer-events": "none" }, svg);
+  el("rect", { x: mL, y: mT, width: pw, height: ph, fill: "transparent" }, svg);
+  c.kind = kind; c.cols = cols;
+}
+function drawCharts() { drawChart(charts["c-eq"], "eq"); drawChart(charts["c-dd"], "dd"); setHover(hoverI); }
+function setHover(k) {
+  hoverI = k;
+  for (const c of Object.values(charts)) {
+    if (!c.hover) continue; c.hover.innerHTML = "";
+    if (k == null || !R || k >= R.N) { c.tip.hidden = true; continue; }
+    const x = c.xs(k), ser = c.kind === "eq" ? R.s : R.d;
+    el("line", { x1: x, x2: x, y1: c.mT, y2: c.mT + c.ph, stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3 3" }, c.hover);
+    for (let i = 0; i < 3; i++) el("circle", { cx: x, cy: c.ys(ser[i][k]), r: 4, fill: c.cols[i], stroke: "var(--panel)", "stroke-width": 2 }, c.hover);
+    const a = R.modeA[k], names = ["전략", "{{LEV}} 보유", "{{BASE}} 보유"];
+    c.tip.innerHTML = `<div class="d"><span>${iso(X.ds[R.i0 + k])}</span><span class="chip ${a ? "a" : "vt"}">${a ? "A 모드" : "VT 모드"}</span></div>` +
+      names.map((n, i) => `<div class="row"><span><span class="sw" style="background:${c.cols[i]}"></span>${n}</span><b>${c.kind === "eq" ? usd(ser[i][k]) : pct(ser[i][k])}</b></div>`).join("");
+    c.tip.hidden = false;
+    const W = c.box.clientWidth, tw = c.tip.offsetWidth;
+    c.tip.style.left = (x + 14 + tw > W ? x - 14 - tw : x + 14) + "px";
+    c.tip.style.top = c.kind === "eq" ? "12px" : "4px";
+  }
+}
+new ResizeObserver(() => R && drawCharts()).observe($("c-eq"));
+
+/* ---------- tables ---------- */
+function cell(v, kind) {
+  if (!isFinite(v)) return "<td>—</td>";
+  if (kind === "m") return `<td>${pct(v)}</td>`;
+  return `<td class="${v < 0 ? "n" : ""}">${pct(v)}</td>`;
+}
+function tables() {
+  const N = R.N, s0 = X.ds[R.i0], s1 = X.ds[R.i0 + N - 1];
+  const segs = [["선택 기간 전체", "00000000", "99999999"], ["1986–1998", "00000000", "19981231"], ["1999–", "19990101", "99999999"],
+    ["2000–2015", "20000101", "20151231"], ["{{REAL0_Y}}– 실제 {{LEV}}", "{{REAL0}}", "99999999"], ["2016–", "20160101", "99999999"]];
+  let h = `<thead><tr><th>구간</th><th>전략 CAGR</th><th>MDD</th><th>{{LEV}}</th><th>MDD</th><th>{{BASE}}</th><th>MDD</th></tr></thead><tbody>`;
+  for (const [name, a, b] of segs) {
+    if (b < s0 || a > s1) continue;
+    const k0 = kOf(a), k1 = Math.min(N - 1, kOf(b < "9" ? String(+b + 1) : "99999999") - 1);
+    if (k1 - k0 < 60) continue;
+    if (name !== "선택 기간 전체" && k0 === 0 && k1 === N - 1) continue;
+    const st = R.s.map(x => stat(x, k0, k1));
+    h += `<tr><td>${name}</td><td class="strong">${pct(st[0].c)}</td><td>${pct(st[0].m)}</td><td>${pct(st[1].c)}</td><td>${pct(st[1].m)}</td><td>${pct(st[2].c)}</td><td>${pct(st[2].m)}</td></tr>`;
+  }
+  $("seg-t").innerHTML = h + "</tbody>";
+
+  // 주요 낙폭
+  const d = R.d[0], eps = []; let k = 0;
+  while (k < N) { if (d[k] < 0) { const s = k; let tr = k; while (k < N && d[k] < 0) { if (d[k] < d[tr]) tr = k; k++; }
+    eps.push({ v: d[tr], pk: Math.max(0, s - 1), tr, rec: k < N ? k : null }); } else k++; }
+  eps.sort((a, b) => a.v - b.v);
+  $("dd-t").innerHTML = `<thead><tr><th>낙폭</th><th>고점</th><th>저점</th><th>회복</th><th>저점 모드</th></tr></thead><tbody>` +
+    eps.slice(0, 6).map(e => `<tr><td class="strong" style="font-family:var(--f-mono)">${pct(e.v)}</td><td>${iso(X.ds[R.i0 + e.pk])}</td><td>${iso(X.ds[R.i0 + e.tr])}</td><td>${e.rec != null ? iso(X.ds[R.i0 + e.rec]) : "미회복"}</td><td><span class="chip ${R.modeA[e.tr] ? "a" : "vt"}">${R.modeA[e.tr] ? "A" : "VT"}</span></td></tr>`).join("") + "</tbody>";
+
+  // 연도별
+  const y0 = +s0.slice(0, 4), y1 = +s1.slice(0, 4);
+  let rows = "", lose = 0, ny = 0;
+  for (let y = y0; y <= y1; y++) {
+    const k0 = kOf(y + "0101"), k1 = kOf((y + 1) + "0101") - 1; if (k1 < k0) continue;
+    const st = R.s.map(x => stat(x, k0, k1)); let a = 0; for (let j = k0; j <= k1; j++) a += R.modeA[j];
+    const r = Math.round(st[0].r * 100) / 100; ny++; if (r < 0) lose++;
+    const partial = (y === y0 && s0.slice(4) > "0110") || (y === y1 && s1.slice(4) < "1220");
+    rows += `<tr tabindex="0" data-y="${y}" class="${y0 === y1 ? "sel" : ""}" title="${y}년만 보기"><td>${y}${partial ? "*" : ""}</td><td class="strong ${r < 0 ? "hn n" : r > 0 ? "hp" : ""}">${spct(r)}</td><td>${spct(st[0].m)}</td><td class="${st[1].r < 0 ? "n" : ""}">${spct(st[1].r)}</td><td class="${st[2].r < 0 ? "n" : ""}">${spct(st[2].r)}</td><td>${a ? pct(a / (k1 - k0 + 1), 0) : "—"}</td></tr>`;
+  }
+  $("yr-t").innerHTML = `<thead><tr><th>연도</th><th>전략 %</th><th>연중 MDD %</th><th>{{LEV}} %</th><th>{{BASE}} %</th><th>A 모드 비중</th></tr></thead><tbody>${rows}</tbody>`;
+  $("yr-note").textContent = y0 === y1 ? `${y0}년만 보는 중 · '전체' 버튼으로 돌아가기` : `손실 연도 ${lose} / ${ny} · * 일부 기간 · 행을 누르면 그 해만 보기`;
+}
+
+/* ---------- controls ---------- */
+let raf = 0; const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(compute); };
+for (const id of ["band", "vt", "invest", "ntier", "buy", "sell"]) $(id).addEventListener("input", schedule);
+for (const id of ["start", "end", "interest"]) $(id).addEventListener("change", schedule);
+document.querySelectorAll("#lag button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("#lag button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); schedule(); }));
+document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => {
+  [$("start").value, $("end").value] = presetRange(b.dataset.p); schedule(); }));
+$("y-one").addEventListener("change", () => { const y = +$("y-one").value; if (y) setYears(y, y); });
+const pickRow = e => { const tr = e.target.closest("tr[data-y]"); if (!tr) return; const y = +tr.dataset.y; setYears(y, y); $("c-eq").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+$("yr-t").addEventListener("click", pickRow);
+$("yr-t").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickRow(e); } });
+$("reset").addEventListener("click", () => { setState({ ...DEF, start: $("start").value, end: $("end").value }); schedule(); });
+setState(DEF); compute();
+})();
+</script>
