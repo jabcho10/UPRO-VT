@@ -293,10 +293,10 @@ const DATA = /*DATA*/;
 </script>
 <script>
 (() => {
-const X = prepData(DATA);
+let X = prepData(DATA);
 const $ = id => document.getElementById(id);
 const DEF = { start: "1986-10-01", end: "", band: 3, lag: 2, vt: 20, invest: 70, ntier: {{DEF_NTIER}}, buy: {{DEF_BUY}}, sell: {{DEF_SELL}}, interest: false };
-const lastISO = iso(DATA.d[X.n - 1]);
+let lastISO = iso(DATA.d[X.n - 1]);
 function iso(s) { return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8); }
 const pct = (v, d = 1) => (v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(d) + "%";
 const spct = (v, d = 0) => { const r = Math.round(v * 100 * 10 ** d) / 10 ** d; return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(d); };
@@ -305,7 +305,7 @@ const usdS = v => v >= 1e6 ? "$" + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + "M" : v
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 $("start").min = "1986-10-01"; $("end").max = lastISO; $("start").max = lastISO; $("end").min = "1986-10-01";
-const Y0 = 1986, Y1 = +lastISO.slice(0, 4);
+const Y0 = 1986; let Y1 = +lastISO.slice(0, 4);
 for (let y = Y1; y >= Y0; y--) $("y-one").add(new Option(y + "년" + (y === Y1 ? " (올해)" : ""), y));
 const yStartISO = y => y <= Y0 ? DEF.start : y + "-01-01";
 const yEndISO = y => y >= Y1 ? lastISO : y + "-12-31";
@@ -322,7 +322,9 @@ function syncYears() {
   $("y-one").value = $("start").value === yStartISO(y) && ($("end").value || lastISO) === yEndISO(y) ? String(y) : "";
 }
 function setYears(a, b) { if (a > b) [a, b] = [b, a]; $("start").value = yStartISO(a); $("end").value = yEndISO(b); schedule(); }
-$("data-range").textContent = `데이터: ${iso(DATA.d[0])} ~ ${lastISO} · 거래일 ${X.n.toLocaleString()}일 · 초기자본 $10,000`;
+let liveNote = "";
+const rangeNote = () => { $("data-range").textContent = `데이터: ${iso(DATA.d[0])} ~ ${lastISO} · 거래일 ${X.n.toLocaleString()}일 · 초기자본 $10,000${liveNote}`; };
+rangeNote();
 
 function readState() {
   return {
@@ -544,5 +546,27 @@ $("yr-t").addEventListener("click", pickRow);
 $("yr-t").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickRow(e); } });
 $("reset").addEventListener("click", () => { setState({ ...DEF, start: $("start").value, end: $("end").value }); schedule(); });
 setState(DEF); compute();
+
+// 자동 업데이트 시세(data/prices.json, Yahoo)로 내장 데이터 뒤의 기간을 이어 붙임
+fetch("data/prices.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).then(J => {
+  const Lv = J?.symbols?.["{{LEV}}"]?.yahoo, Bs = J?.symbols?.["{{BASE}}"]?.yahoo; if (!Lv || !Bs) return;
+  const nL = Lv.lastFinal ? Lv.dates.length : Lv.dates.length - 1, nB = Bs.lastFinal ? Bs.dates.length : Bs.dates.length - 1;
+  const bm = new Map(); for (let i = 0; i < nB; i++) bm.set(Bs.dates[i], Bs.close[i]);
+  const last = iso(DATA.d[DATA.d.length - 1]), li = Lv.dates.indexOf(last);
+  if (li < 0 || !bm.has(last)) return;
+  // 수익률로 이어 붙임: 레버리지 ETF 는 조정 종가, 신호 ETF 는 가격 종가
+  const kU = DATA.u[DATA.u.length - 1] / Lv.adj[li], kS = DATA.s[DATA.s.length - 1] / bm.get(last), c = DATA.c[DATA.c.length - 1];
+  let added = 0;
+  for (let i = li + 1; i < nL; i++) { const d = Lv.dates[i]; if (!bm.has(d)) continue;
+    DATA.d.push(d.replaceAll("-", "")); DATA.u.push(Lv.adj[i] * kU); DATA.s.push(bm.get(d) * kS); DATA.c.push(c); added++; }
+  if (!added) return;
+  const oldLast = lastISO, wasEnd = $("end").value === oldLast;
+  X = prepData(DATA); lastISO = iso(DATA.d[X.n - 1]);
+  $("end").max = lastISO; $("start").max = lastISO; if (wasEnd) $("end").value = lastISO;
+  const ny = +lastISO.slice(0, 4);
+  if (ny > Y1) { $("y-one").options[1].text = Y1 + "년"; for (let y = ny; y > Y1; y--) $("y-one").add(new Option(y + "년" + (y === ny ? " (올해)" : ""), y), 1); Y1 = ny; }
+  liveNote = ` · ${oldLast} 이후 ${added}일은 자동 업데이트 시세(Yahoo, 현금 금리는 마지막 값 유지)`;
+  rangeNote(); compute();
+}).catch(() => {});
 })();
 </script>

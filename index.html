@@ -137,7 +137,7 @@ td.hp { background: var(--pos-bg); } td.hn { background: var(--neg-bg); }
 <body>
 <div class="wrap">
   <header>
-    <nav class="assets" aria-label="종목"><a href="index.html" aria-current="page">UPRO</a><a href="tqqq.html">TQQQ</a></nav>
+    <nav class="assets" aria-label="종목"><a href="index.html" aria-current="page">UPRO</a><a href="tqqq.html">TQQQ</a><a href="order.html">주문</a></nav>
     <div class="eyebrow">Backtest · S&amp;P500 3x · 1986–2026</div>
     <h1>UPRO 모드 변경 전략</h1>
     <p class="lede">SPY 12개월 수익률이 <b>−3% 아래</b>로 내려가면 LOC 분할매매(A 모드), <b>+3% 위</b>로 올라오면 변동성 타게팅(VT 모드)으로 운용합니다. 조건을 바꾸면 브라우저에서 바로 다시 계산합니다.</p>
@@ -321,11 +321,14 @@ function runBacktest(X, o) {
   for (let t = start; t <= end; t++) {
     if (o.interest) cash *= 1 + (X.C[t - 1] / 100) * X.days[t] / 365;
     const p = X.P[t], pp = X.P[t - 1];
-    const ret12 = X.S[t - lag] / X.S[t - lag - 252] - 1;
+    // sig: 1 = A 모드로, -1 = VT 모드로, 0 = 유지.  o.sig 가 있으면 외부 신호 사용
+    let sig;
+    if (o.sig) sig = o.sig[t];
+    else { const ret12 = X.S[t - lag] / X.S[t - lag - 252] - 1; sig = ret12 < -band ? 1 : ret12 > band ? -1 : 0; }
     const old = mode;
-    if (mode === null) mode = ret12 < -band ? "A" : "VT";
-    else if (mode === "VT" && ret12 < -band) mode = "A";
-    else if (mode === "A" && ret12 > band) mode = "VT";
+    if (mode === null) mode = sig === 1 ? "A" : "VT";
+    else if (mode === "VT" && sig === 1) mode = "A";
+    else if (mode === "A" && sig === -1) mode = "VT";
     const switched = old !== null && old !== mode;
     if (switched) switches++;
     const E = cash + sh * p;
@@ -376,10 +379,10 @@ if (typeof module !== "undefined") module.exports = { prepData, runBacktest, cag
 </script>
 <script>
 (() => {
-const X = prepData(DATA);
+let X = prepData(DATA);
 const $ = id => document.getElementById(id);
 const DEF = { start: "1986-10-01", end: "", band: 3, lag: 2, vt: 20, invest: 70, ntier: 5, buy: 1, sell: 1, interest: false };
-const lastISO = iso(DATA.d[X.n - 1]);
+let lastISO = iso(DATA.d[X.n - 1]);
 function iso(s) { return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8); }
 const pct = (v, d = 1) => (v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(d) + "%";
 const spct = (v, d = 0) => { const r = Math.round(v * 100 * 10 ** d) / 10 ** d; return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(d); };
@@ -388,7 +391,7 @@ const usdS = v => v >= 1e6 ? "$" + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + "M" : v
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 $("start").min = "1986-10-01"; $("end").max = lastISO; $("start").max = lastISO; $("end").min = "1986-10-01";
-const Y0 = 1986, Y1 = +lastISO.slice(0, 4);
+const Y0 = 1986; let Y1 = +lastISO.slice(0, 4);
 for (let y = Y1; y >= Y0; y--) $("y-one").add(new Option(y + "년" + (y === Y1 ? " (올해)" : ""), y));
 const yStartISO = y => y <= Y0 ? DEF.start : y + "-01-01";
 const yEndISO = y => y >= Y1 ? lastISO : y + "-12-31";
@@ -405,7 +408,9 @@ function syncYears() {
   $("y-one").value = $("start").value === yStartISO(y) && ($("end").value || lastISO) === yEndISO(y) ? String(y) : "";
 }
 function setYears(a, b) { if (a > b) [a, b] = [b, a]; $("start").value = yStartISO(a); $("end").value = yEndISO(b); schedule(); }
-$("data-range").textContent = `데이터: ${iso(DATA.d[0])} ~ ${lastISO} · 거래일 ${X.n.toLocaleString()}일 · 초기자본 $10,000`;
+let liveNote = "";
+const rangeNote = () => { $("data-range").textContent = `데이터: ${iso(DATA.d[0])} ~ ${lastISO} · 거래일 ${X.n.toLocaleString()}일 · 초기자본 $10,000${liveNote}`; };
+rangeNote();
 
 function readState() {
   return {
@@ -627,6 +632,28 @@ $("yr-t").addEventListener("click", pickRow);
 $("yr-t").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickRow(e); } });
 $("reset").addEventListener("click", () => { setState({ ...DEF, start: $("start").value, end: $("end").value }); schedule(); });
 setState(DEF); compute();
+
+// 자동 업데이트 시세(data/prices.json, Yahoo)로 내장 데이터 뒤의 기간을 이어 붙임
+fetch("data/prices.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).then(J => {
+  const Lv = J?.symbols?.["UPRO"]?.yahoo, Bs = J?.symbols?.["SPY"]?.yahoo; if (!Lv || !Bs) return;
+  const nL = Lv.lastFinal ? Lv.dates.length : Lv.dates.length - 1, nB = Bs.lastFinal ? Bs.dates.length : Bs.dates.length - 1;
+  const bm = new Map(); for (let i = 0; i < nB; i++) bm.set(Bs.dates[i], Bs.close[i]);
+  const last = iso(DATA.d[DATA.d.length - 1]), li = Lv.dates.indexOf(last);
+  if (li < 0 || !bm.has(last)) return;
+  // 수익률로 이어 붙임: 레버리지 ETF 는 조정 종가, 신호 ETF 는 가격 종가
+  const kU = DATA.u[DATA.u.length - 1] / Lv.adj[li], kS = DATA.s[DATA.s.length - 1] / bm.get(last), c = DATA.c[DATA.c.length - 1];
+  let added = 0;
+  for (let i = li + 1; i < nL; i++) { const d = Lv.dates[i]; if (!bm.has(d)) continue;
+    DATA.d.push(d.replaceAll("-", "")); DATA.u.push(Lv.adj[i] * kU); DATA.s.push(bm.get(d) * kS); DATA.c.push(c); added++; }
+  if (!added) return;
+  const oldLast = lastISO, wasEnd = $("end").value === oldLast;
+  X = prepData(DATA); lastISO = iso(DATA.d[X.n - 1]);
+  $("end").max = lastISO; $("start").max = lastISO; if (wasEnd) $("end").value = lastISO;
+  const ny = +lastISO.slice(0, 4);
+  if (ny > Y1) { $("y-one").options[1].text = Y1 + "년"; for (let y = ny; y > Y1; y--) $("y-one").add(new Option(y + "년" + (y === ny ? " (올해)" : ""), y), 1); Y1 = ny; }
+  liveNote = ` · ${oldLast} 이후 ${added}일은 자동 업데이트 시세(Yahoo, 현금 금리는 마지막 값 유지)`;
+  rangeNote(); compute();
+}).catch(() => {});
 })();
 </script>
 

@@ -1,0 +1,36 @@
+name: 시세 업데이트
+
+on:
+  schedule:
+    # 미국 장 전·장중·장 마감 뒤 (UTC, 서머타임 양쪽을 덮도록 22시까지)
+    - cron: "15 13,15,17,19 * * 1-5"
+    - cron: "20 21,22 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Yahoo + Google Finance 시세 받기
+        run: python tools/fetch_prices.py
+      - name: 바뀌었으면 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/prices.json
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "시세 업데이트 $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase
+          git push

@@ -21,12 +21,18 @@ HEAD = """<!doctype html>
 <meta name="description" content="{DESC}">
 <style>:root{{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}}body{{margin:0}}img{{max-width:100%}}[hidden]{{display:none!important}}</style>
 """
+def navhtml(current):
+    cur = ' aria-current="page"'
+    items = [(k, p["file"], p["LEV"]) for k, p in PAGES.items()] + [("order", "order.html", "주문")]
+    return "".join('<a href="%s"%s>%s</a>' % (f, cur if k == current else "", label) for k, f, label in items)
+
+
 for key, c in PAGES.items():
     subprocess.run([sys.executable, "export.py", key], cwd=H, check=True)
     dj = os.path.join(H, f"data_{key}.json"); data = open(dj, encoding="utf-8").read(); os.remove(dj)
     import json; real0 = json.loads(data)["real0"]
     cur = ' aria-current="page"'
-    nav = "".join('<a href="%s"%s>%s</a>' % (p["file"], cur if k == key else "", p["LEV"]) for k, p in PAGES.items())
+    nav = navhtml(key)
     note = (f"{c['LEV']} {real0[:4]}-{real0[4:6]}-{real0[6:]} 이후는 실제 종가, 이전은 합성 가격({c['SYN']}). "
             f"합성 구간은 지수 배당이 빠져 실제보다 낮게 나옵니다. {c['BASE']}는 배당 제외 가격.")
     body = r("template.html")
@@ -38,3 +44,13 @@ for key, c in PAGES.items():
     html = HEAD.format(DESC=c["DESC"]) + body[:i] + "</head>\n<body>\n" + body[i:] + "\n</body>\n</html>\n"
     open(os.path.join(H, "..", c["file"]), "w", encoding="utf-8").write(html)
     print(c["file"], len(html), "bytes")
+
+# 주문 페이지: 백테스트 페이지와 같은 스타일 사용, 시세는 data/prices.json 에서 읽음
+t = r("template.html"); style = t[t.index("<style>"):t.index("</style>") + 8]
+body = r("order_template.html").replace("{{STYLE}}", style).replace("{{NAV}}", navhtml("order"))
+i = body.index('<div class="wrap">')
+NL = chr(10)
+html = (HEAD.format(DESC="UPRO/TQQQ 모드 변경 전략의 오늘 주문 계산. 시세는 Yahoo·Google Finance에서 자동 업데이트.")
+        + body[:i] + "</head>" + NL + "<body>" + NL + body[i:] + NL + "</body>" + NL + "</html>" + NL)
+open(os.path.join(H, "..", "order.html"), "w", encoding="utf-8").write(html)
+print("order.html", len(html), "bytes")
